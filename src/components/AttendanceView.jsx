@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { supabase } from '../lib/supabaseClient';
 import { format } from 'date-fns';
+import { compareSignatures } from '../utils/signatureUtils';
 
 const AttendanceView = () => {
     const [loading, setLoading] = useState(true);
@@ -10,7 +11,13 @@ const AttendanceView = () => {
     const [attendance, setAttendance] = useState({}); // { studentId: 'Present' | 'Absent' | 'OD' }
     const [showModal, setShowModal] = useState(false);
     const [uploading, setUploading] = useState(false);
-    const [pinInput, setPinInput] = useState(''); // Teacher PIN
+
+    // Verification State
+    const [pinInput, setPinInput] = useState('');
+    const [signatureAttempts, setSignatureAttempts] = useState(0);
+    const [isPinFallback, setIsPinFallback] = useState(false);
+    const [verificationMessage, setVerificationMessage] = useState('');
+
     const sigCanvas = useRef({});
 
     // Fetch active class based on current time
@@ -24,12 +31,6 @@ const AttendanceView = () => {
         const day = format(now, 'EEEE'); // 'Monday'
         const time = format(now, 'HH:mm:ss');
 
-        // Query time_table to find class happening NOW
-        // Note: This logic assumes simple time ranges. Database Time type comparison is standard.
-        // We fetch ALL for the day and filter in JS for simplicity or use exact DB queries.
-        // For now, let's fetch pending classes for the day.
-
-        // Simplification: Just get the FIRST match for the current Day and Time
         const { data, error } = await supabase
             .from('time_table')
             .select(`
@@ -43,7 +44,7 @@ const AttendanceView = () => {
             .limit(1)
             .maybeSingle();
 
-        if (error && error.code !== 'PGRST116') { // PGRST116 is 'not found'
+        if (error && error.code !== 'PGRST116') {
             console.error('Error fetching time table:', error);
         }
 
@@ -51,12 +52,6 @@ const AttendanceView = () => {
             setActiveClass(data);
             fetchStudents();
         } else {
-            // Fallback for demo if no class is found currently (remove in prod)
-            // setActiveClass({ 
-            //     subjects: { name: 'Demo Subject', code: 'DEMO101' }, 
-            //     teachers: { name: 'Demo Teacher' } 
-            // });
-            // fetchStudents();
             setActiveClass(null);
         }
         setLoading(false);
@@ -89,45 +84,7 @@ const AttendanceView = () => {
         });
     };
 
-    const verifyAndSubmit = async () => {
-        if (!pinInput) {
-            alert('Please enter your PIN');
-            setUploading(false);
-            return;
-        }
-
-        // Verify PIN against DB
-        const { data: teacherData, error: pinError } = await supabase
-            .from('teachers')
-            .select('id')
-            .eq('id', activeClass.teacher_id)
-            .eq('pin', pinInput) // Secure check
-            .maybeSingle();
-
-        if (pinError) {
-            console.error('Error verifying PIN:', pinError);
-            alert('An error occurred during PIN verification.');
-            setUploading(false);
-            return;
-        }
-
-        if (!teacherData) {
-            alert('Invalid PIN! Verification Failed.');
-            setUploading(false);
-            return;
-        }
-
-        // 4. Upload Signature (visual record only)
-        const signatureData = sigCanvas.current.toDataURL('image/png');
-        const signatureBlob = await (await fetch(signatureData)).blob();
-        const fileName = `sig_${Date.now()}.png`;
-        const { error: uploadError } = await supabase.storage.from('signatures').upload(fileName, signatureBlob);
-
-        // Handle upload errors mainly for debugging, proceed if minor
-        const signatureUrl = uploadError
-            ? null
-            : supabase.storage.from('signatures').getPublicUrl(fileName).data.publicUrl;
-
+    const submitAttendance = async (signatureUrlToSave = null) => {
         // 2. Prepare Data
         const absentees = students.filter(s => attendance[s.id] === 'Absent').map(s => s.id);
         const odStudents = students.filter(s => attendance[s.id] === 'OD').map(s => s.id);
@@ -149,7 +106,7 @@ const AttendanceView = () => {
             teacher_id: activeClass.teacher_id,
             absentees_json: absentees,
             od_students_json: odStudents,
-            teacher_signature_url: signatureUrl,
+            teacher_signature_url: signatureUrlToSave,
             date: today
         };
 
@@ -166,18 +123,108 @@ const AttendanceView = () => {
         } else {
             alert('Verified & Submitted Successfully!');
             setShowModal(false);
-            setPinInput(''); // Clear PIN
+            setPinInput('');
+            setSignatureAttempts(0);
+            setIsPinFallback(false);
         }
-        setUploading(false);
     };
 
-    const handleSubmit = async () => {
-        if (sigCanvas.current.isEmpty()) {
-            alert('Teacher signature is required!');
-            return;
-        }
+
+    const handleVerification = async () => {
         setUploading(true);
-        await verifyAndSubmit();
+        setVerificationMessage('');
+
+        try {
+            // fetch teacher data first
+            const { data: teacher, error } = await supabase
+                .from('teachers')
+                .select('pin, signature_url')
+                .eq('id', activeClass.teacher_id)
+                .single();
+
+            if (error || !teacher) {
+                alert("Error fetching teacher details.");
+                setUploading(false);
+                return;
+            }
+
+            // PIN FALLBACK MODE
+            if (isPinFallback) {
+                if (!pinInput) {
+                    alert("Please enter PIN.");
+                    setUploading(false);
+                    return;
+                }
+                if (pinInput === teacher.pin) {
+                    await submitAttendance(null); // No signature saved for PIN verify? Or we can save the last attempt?
+                } else {
+                    alert("Invalid PIN.");
+                }
+                setUploading(false);
+                return;
+            }
+
+            // SIGNATURE MODE
+            if (sigCanvas.current.isEmpty()) {
+                alert("Please sign.");
+                setUploading(false);
+                return;
+            }
+
+            const currentSigData = sigCanvas.current.toDataURL('image/png');
+
+            if (!teacher.signature_url) {
+                // If no reference signature exists, fallback to PIN logic immediately or just accept (Security risk?)
+                // Let's force PIN if no signature is set up.
+                alert("No reference signature found. Please verify with PIN.");
+                setIsPinFallback(true);
+                setUploading(false);
+                return;
+            }
+
+            // Client-side comparison
+            const similarity = await compareSignatures(teacher.signature_url, currentSigData);
+            console.log("Signature Similarity:", similarity);
+
+            const THRESHOLD = 0.15; // 15% overlap match - conservative start
+
+            if (similarity >= THRESHOLD) {
+                // Upload this valid signature and save
+                const signatureBlob = await (await fetch(currentSigData)).blob();
+                const fileName = `sig_${Date.now()}.png`;
+                const { error: uploadError } = await supabase.storage.from('signatures').upload(fileName, signatureBlob);
+                const publicUrl = uploadError ? null : supabase.storage.from('signatures').getPublicUrl(fileName).data.publicUrl;
+
+                await submitAttendance(publicUrl);
+            } else {
+                // Mismatch
+                const newAttempts = signatureAttempts + 1;
+                setSignatureAttempts(newAttempts);
+                setVerificationMessage(`Signature mismatch! (${newAttempts}/3)`);
+
+                if (newAttempts >= 3) {
+                    setTimeout(() => {
+                        setIsPinFallback(true);
+                        setVerificationMessage("Too many failed attempts. Use PIN.");
+                    }, 1000);
+                }
+            }
+
+        } catch (err) {
+            console.error(err);
+            alert("Verification error.");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const resetVerification = () => {
+        if (sigCanvas.current && sigCanvas.current.clear) sigCanvas.current.clear();
+        setPinInput('');
+        setVerificationMessage('');
+        // We do NOT reset attempts here to prevent brute forcing signature by clearing? 
+        // Actually, clearing meant 'I messed up drawing', not 'I failed verification'.
+        // But logic above increments only on FAIL. 
     };
 
     if (loading) return <div className="p-4 text-center">Checking Schedule...</div>;
@@ -233,7 +280,7 @@ const AttendanceView = () => {
             {/* Submit Button */}
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 sm:absolute">
                 <button
-                    onClick={() => setShowModal(true)}
+                    onClick={() => { setShowModal(true); setIsPinFallback(false); setSignatureAttempts(0); }}
                     className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
                 >
                     Verify & Submit
@@ -245,15 +292,35 @@ const AttendanceView = () => {
                 <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-slide-up">
                         <h3 className="text-lg font-bold text-gray-900 mb-2">Teacher Verification</h3>
-                        <p className="text-sm text-gray-500 mb-4">Please sign below to authorize this attendance.</p>
+                        <p className="text-sm text-gray-500 mb-4">
+                            {isPinFallback ? "Verification Limit Exceeded. Enter PIN." : "Please sign below to authorize this attendance."}
+                        </p>
 
-                        <div className="border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-gray-50">
-                            <SignatureCanvas
-                                ref={sigCanvas}
-                                penColor="black"
-                                canvasProps={{ width: 300, height: 160, className: 'sigCanvas' }}
-                            />
-                        </div>
+                        {!isPinFallback ? (
+                            <div className="border-2 border-dashed border-gray-300 rounded-xl overflow-hidden bg-gray-50 relative">
+                                <SignatureCanvas
+                                    ref={sigCanvas}
+                                    penColor="black"
+                                    canvasProps={{ width: 300, height: 160, className: 'sigCanvas' }}
+                                />
+                                {verificationMessage && (
+                                    <div className="absolute bottom-2 left-0 right-0 text-center text-red-500 text-xs font-bold bg-white/80 p-1">
+                                        {verificationMessage}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="my-6">
+                                <input
+                                    type="password"
+                                    maxLength={4}
+                                    placeholder="Enter 4-digit PIN"
+                                    className="w-full text-center text-3xl tracking-widest border-2 border-gray-300 rounded-lg p-3 focus:border-blue-500 outline-none"
+                                    value={pinInput}
+                                    onChange={e => setPinInput(e.target.value)}
+                                />
+                            </div>
+                        )}
 
                         <div className="flex gap-3 mt-6">
                             <button
@@ -262,18 +329,20 @@ const AttendanceView = () => {
                             >
                                 Cancel
                             </button>
+                            {!isPinFallback && (
+                                <button
+                                    onClick={resetVerification}
+                                    className="flex-1 py-3 text-red-500 font-medium"
+                                >
+                                    Clear
+                                </button>
+                            )}
                             <button
-                                onClick={() => sigCanvas.current.clear()}
-                                className="flex-1 py-3 text-red-500 font-medium"
-                            >
-                                Clear
-                            </button>
-                            <button
-                                onClick={handleSubmit}
+                                onClick={handleVerification}
                                 disabled={uploading}
-                                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold shadow-md disabled:bg-gray-400"
+                                className={`flex-1 py-3 text-white rounded-xl font-bold shadow-md disabled:bg-gray-400 ${isPinFallback ? 'bg-orange-500' : 'bg-blue-600'}`}
                             >
-                                {uploading ? '...' : 'Confirm'}
+                                {uploading ? 'Checking...' : isPinFallback ? 'Verify PIN' : 'Verify Sign'}
                             </button>
                         </div>
                     </div>
