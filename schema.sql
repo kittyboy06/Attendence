@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS students (
   name TEXT NOT NULL,
   register_no TEXT NOT NULL UNIQUE,
   department TEXT,
+  status TEXT DEFAULT 'Active', -- 'Active', 'Long Absent', 'Drop Out'
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -67,9 +67,15 @@ const AttendanceView = () => {
         if (error) console.error('Error fetching students:', error);
         if (data) {
             setStudents(data);
-            // Initialize all as Present
+            // Initialize all as Present, UNLESS status is 'Long Absent' or 'Drop Out'
             const initialStatus = {};
-            data.forEach(s => initialStatus[s.id] = 'Present');
+            data.forEach(s => {
+                if (s.status === 'Long Absent' || s.status === 'Drop Out') {
+                    initialStatus[s.id] = 'Absent';
+                } else {
+                    initialStatus[s.id] = 'Present';
+                }
+            });
             setAttendance(initialStatus);
         }
     };
@@ -273,13 +279,18 @@ const AttendanceView = () => {
                     <div
                         key={student.id}
                         onClick={() => toggleStatus(student.id)}
-                        className={`p-4 rounded-xl flex justify-between items-center cursor-pointer transition-all duration-200 border-2 ${attendance[student.id] === 'Present' ? 'border-transparent bg-white shadow-sm hover:shadow-md' :
-                            attendance[student.id] === 'Absent' ? 'border-red-500 bg-red-50 shadow-inner' :
-                                'border-yellow-500 bg-yellow-50 shadow-inner'
+                        className={`p-4 rounded-xl flex justify-between items-center cursor-pointer transition-all duration-200 border-2 ${(student.status === 'Long Absent' || student.status === 'Drop Out') ? 'border-red-500 bg-red-100 opacity-75' :
+                                attendance[student.id] === 'Present' ? 'border-transparent bg-white shadow-sm hover:shadow-md' :
+                                    attendance[student.id] === 'Absent' ? 'border-red-500 bg-red-50 shadow-inner' :
+                                        'border-yellow-500 bg-yellow-50 shadow-inner'
                             }`}
                     >
                         <div>
-                            <p className="font-semibold text-gray-800">{student.name}</p>
+                            <div className="flex items-center gap-2">
+                                <p className="font-semibold text-gray-800">{student.name}</p>
+                                {student.status === 'Long Absent' && <span className="text-[10px] bg-red-200 text-red-800 px-1 rounded border border-red-300">Long Absent</span>}
+                                {student.status === 'Drop Out' && <span className="text-[10px] bg-gray-800 text-white px-1 rounded">Dropout</span>}
+                            </div>
                             <p className="text-xs text-gray-400">{student.register_no}</p>
                         </div>
                         <div>

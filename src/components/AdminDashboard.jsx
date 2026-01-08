@@ -27,7 +27,7 @@ const AdminDashboard = () => {
     const [pendingSignature, setPendingSignature] = useState(null);
     const [newSubject, setNewSubject] = useState({ name: '', code: '' });
     const [newClass, setNewClass] = useState({ day: 'Monday', start: '', end: '', subject: '', teacher: '' });
-    const [newStudent, setNewStudent] = useState({ name: '', register_no: '' });
+    const [newStudent, setNewStudent] = useState({ name: '', register_no: '', status: 'Active' });
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -81,7 +81,7 @@ const AdminDashboard = () => {
         if (sigCanvasRef.current && sigCanvasRef.current.clear) sigCanvasRef.current.clear(); // Clear canvas
         setNewSubject({ name: '', code: '' });
         setNewClass({ day: 'Monday', start: '', end: '', subject: '', teacher: '' });
-        setNewStudent({ name: '', register_no: '' });
+        setNewStudent({ name: '', register_no: '', status: 'Active' });
     };
 
     // --- Handlers ---
@@ -240,7 +240,7 @@ const AdminDashboard = () => {
 
     const startEditStudent = (s) => {
         setEditingId(s.id);
-        setNewStudent({ name: s.name, register_no: s.register_no });
+        setNewStudent({ name: s.name, register_no: s.register_no, status: s.status || 'Active' });
     };
 
     const deleteStudent = async (id) => {
@@ -249,6 +249,10 @@ const AdminDashboard = () => {
         if (error) alert(error.message);
         else fetchData();
     };
+
+    // ... inside render ... 
+
+
 
     if (!isAuthenticated) {
         return (
@@ -267,7 +271,7 @@ const AdminDashboard = () => {
     }
 
     return (
-        <div className="h-full overflow-y-auto p-4 pb-20 max-w-2xl mx-auto">
+        <div className="h-full overflow-y-auto p-2 sm:p-4 pb-20 max-w-2xl mx-auto">
             <h1 className="text-3xl font-bold mb-6 text-gray-800">Admin Dashboard</h1>
 
             {/* Tabs */}
@@ -439,40 +443,57 @@ const AdminDashboard = () => {
                 </div>
             )}
 
+
+
             {/* STUDENTS TAB */}
             {activeTab === 'students' && (
                 <div className="space-y-6">
                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                         <h3 className="font-bold text-lg">{editingId ? 'Edit Student' : 'Add Student'}</h3>
-                        <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="flex flex-col gap-3">
                             <input
-                                className="border p-2 rounded flex-1"
+                                className="border p-2 rounded w-full"
                                 placeholder="Student Name"
                                 value={newStudent.name}
                                 onChange={e => setNewStudent({ ...newStudent, name: e.target.value })}
                             />
-                            <div className="flex gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <input
-                                    className="border p-2 rounded flex-1 sm:w-32"
+                                    className="border p-2 rounded w-full"
                                     placeholder="Reg No."
                                     value={newStudent.register_no}
                                     onChange={e => setNewStudent({ ...newStudent, register_no: e.target.value })}
                                 />
-                                <button onClick={addOrUpdateStudent} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 py-2 rounded`}>
-                                    {editingId ? 'Update' : 'Add'}
-                                </button>
+                                <select
+                                    className="border p-2 rounded bg-white w-full"
+                                    value={newStudent.status || 'Active'}
+                                    onChange={e => setNewStudent({ ...newStudent, status: e.target.value })}
+                                >
+                                    <option value="Active">Active</option>
+                                    <option value="Long Absent">Long Absent</option>
+                                    <option value="Drop Out">Drop Out</option>
+                                </select>
                             </div>
-                            {editingId && <button onClick={resetForms} className="text-gray-500 underline text-center">Cancel</button>}
+                            <div className="flex gap-2">
+                                <button onClick={addOrUpdateStudent} className={`w-full ${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white py-2 rounded font-bold`}>
+                                    {editingId ? 'Update Student' : 'Add Student'}
+                                </button>
+                                {editingId && <button onClick={resetForms} className="text-gray-500 underline text-sm whitespace-nowrap px-2">Cancel</button>}
+                            </div>
                         </div>
                     </div>
                     <div className="space-y-2">
                         {students.map(s => (
                             <div key={s.id} className="bg-white p-3 rounded shadow flex justify-between items-center">
-                                <div>
-                                    <span className="font-bold block">{s.name}</span>
+                                <div className="min-w-0 pr-2">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-bold block truncate">{s.name}</span>
+                                        {s.status === 'Long Absent' && <span className="text-[10px] bg-red-100 text-red-800 px-2 py-0.5 rounded-full border border-red-200 whitespace-nowrap">Long Absent</span>}
+                                        {s.status === 'Drop Out' && <span className="text-[10px] bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full border border-gray-300 whitespace-nowrap">Dropout</span>}
+                                    </div>
                                     <span className="text-sm text-gray-500">{s.register_no}</span>
                                 </div>
-                                <div className="flex gap-2 text-sm">
+                                <div className="flex gap-2 text-sm flex-shrink-0">
                                     <button onClick={() => startEditStudent(s)} className="text-blue-500">Edit</button>
                                     <button onClick={() => deleteStudent(s.id)} className="text-red-500">Delete</button>
                                 </div>
@@ -497,9 +518,9 @@ const AdminDashboard = () => {
                                     <option key={d} value={d}>{d}</option>
                                 ))}
                             </select>
-                            <div className="flex gap-1">
-                                <input type="time" className="border p-2 rounded flex-1" value={newClass.start} onChange={e => setNewClass({ ...newClass, start: e.target.value })} />
-                                <input type="time" className="border p-2 rounded flex-1" value={newClass.end} onChange={e => setNewClass({ ...newClass, end: e.target.value })} />
+                            <div className="grid grid-cols-2 gap-2">
+                                <input type="time" className="border p-2 rounded w-full" value={newClass.start} onChange={e => setNewClass({ ...newClass, start: e.target.value })} />
+                                <input type="time" className="border p-2 rounded w-full" value={newClass.end} onChange={e => setNewClass({ ...newClass, end: e.target.value })} />
                             </div>
                             <select
                                 className="border p-2 rounded"
