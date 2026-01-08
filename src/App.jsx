@@ -28,7 +28,7 @@ const Nav = () => {
 
 function App() {
   return (
-    <Router>
+    <Router basename={import.meta.env.BASE_URL}>
       <div className="min-h-screen bg-gray-100 sm:p-4 font-sans text-gray-900">
         <div className="sm:max-w-md sm:mx-auto">
           <Routes>
