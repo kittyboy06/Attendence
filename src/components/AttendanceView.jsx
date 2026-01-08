@@ -237,7 +237,7 @@ const AttendanceView = () => {
     );
 
     return (
-        <div className="max-w-md mx-auto bg-white min-h-screen pb-20 shadow-md sm:rounded-xl sm:overflow-hidden sm:min-h-0 sm:my-10">
+        <div className="max-w-md mx-auto bg-white min-h-screen pb-32 shadow-md sm:rounded-xl sm:overflow-hidden sm:min-h-0 sm:my-10">
             {/* Header */}
             <div className="bg-blue-600 text-white p-6 rounded-b-3xl shadow-lg relative z-10">
                 <h1 className="text-2xl font-bold">{activeClass.subjects.name}</h1>
@@ -277,16 +277,14 @@ const AttendanceView = () => {
                 ))}
             </div>
 
-            {/* Submit Button */}
-            <div className="fixed bottom-16 left-0 right-0 p-4 bg-transparent sm:bg-white sm:border-t sm:border-gray-100 sm:absolute sm:bottom-0 z-30 pointer-events-none sm:pointer-events-auto">
-                <div className="pointer-events-auto">
-                    <button
-                        onClick={() => { setShowModal(true); setIsPinFallback(false); setSignatureAttempts(0); }}
-                        className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
-                    >
-                        Verify & Submit
-                    </button>
-                </div>
+            {/* Submit Button - Floating above Nav */}
+            <div className="fixed bottom-20 left-0 right-0 px-4 py-2 sm:static sm:p-4 z-50 pointer-events-auto">
+                <button
+                    onClick={() => { setShowModal(true); setIsPinFallback(false); setSignatureAttempts(0); }}
+                    className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-xl shadow-blue-200 active:scale-95 transition-transform"
+                >
+                    Verify & Submit
+                </button>
             </div>
 
             {/* Verification Modal */}

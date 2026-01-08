@@ -288,7 +288,7 @@ const AdminDashboard = () => {
                 <div className="space-y-6">
                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                         <h3 className="font-bold text-lg">{editingId ? 'Edit Teacher' : 'Add Teacher'}</h3>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                             <select
                                 className="border p-2 rounded bg-white"
                                 value={newTeacherTitle}
@@ -306,17 +306,20 @@ const AdminDashboard = () => {
                                 value={newTeacherName}
                                 onChange={e => setNewTeacherName(e.target.value)}
                             />
-                            <input
-                                className="border p-2 rounded w-24"
-                                placeholder="PIN"
-                                maxLength={4}
-                                value={newTeacherPin}
-                                onChange={e => setNewTeacherPin(e.target.value)}
-                            />
-                            <button onClick={addOrUpdateTeacher} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 rounded`}>
-                                {editingId ? 'Update' : 'Add'}
-                            </button>
-                            {editingId && <button onClick={resetForms} className="text-gray-500 underline">Cancel</button>}
+                            <div className="flex gap-2">
+                                <input
+                                    className="border p-2 rounded w-full sm:w-24"
+                                    placeholder="PIN"
+                                    type="tel"
+                                    maxLength={4}
+                                    value={newTeacherPin}
+                                    onChange={e => setNewTeacherPin(e.target.value)}
+                                />
+                                <button onClick={addOrUpdateTeacher} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 py-2 rounded flex-1 sm:flex-none`}>
+                                    {editingId ? 'Update' : 'Add'}
+                                </button>
+                            </div>
+                            {editingId && <button onClick={resetForms} className="text-gray-500 underline text-sm mt-1 sm:mt-0">Cancel</button>}
                         </div>
                         {/* Signature Canvas for Reference Signature */}
                         <div className="border border-gray-300 rounded p-2">
@@ -351,23 +354,25 @@ const AdminDashboard = () => {
                 <div className="space-y-6">
                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                         <h3 className="font-bold text-lg">{editingId ? 'Edit Subject' : 'Add Subject'}</h3>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                             <input
                                 className="border p-2 rounded flex-1"
                                 placeholder="Subject Name"
                                 value={newSubject.name}
                                 onChange={e => setNewSubject({ ...newSubject, name: e.target.value })}
                             />
-                            <input
-                                className="border p-2 rounded w-24"
-                                placeholder="Code"
-                                value={newSubject.code}
-                                onChange={e => setNewSubject({ ...newSubject, code: e.target.value })}
-                            />
-                            <button onClick={addOrUpdateSubject} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 rounded`}>
-                                {editingId ? 'Update' : 'Add'}
-                            </button>
-                            {editingId && <button onClick={resetForms} className="text-gray-500 underline">Cancel</button>}
+                            <div className="flex gap-2">
+                                <input
+                                    className="border p-2 rounded flex-1 sm:w-24"
+                                    placeholder="Code"
+                                    value={newSubject.code}
+                                    onChange={e => setNewSubject({ ...newSubject, code: e.target.value })}
+                                />
+                                <button onClick={addOrUpdateSubject} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 py-2 rounded`}>
+                                    {editingId ? 'Update' : 'Add'}
+                                </button>
+                            </div>
+                            {editingId && <button onClick={resetForms} className="text-gray-500 underline text-center">Cancel</button>}
                         </div>
                     </div>
                     <div className="space-y-2">
@@ -392,23 +397,25 @@ const AdminDashboard = () => {
                 <div className="space-y-6">
                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                         <h3 className="font-bold text-lg">{editingId ? 'Edit Student' : 'Add Student'}</h3>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col sm:flex-row gap-2">
                             <input
                                 className="border p-2 rounded flex-1"
                                 placeholder="Student Name"
                                 value={newStudent.name}
                                 onChange={e => setNewStudent({ ...newStudent, name: e.target.value })}
                             />
-                            <input
-                                className="border p-2 rounded w-32"
-                                placeholder="Reg No."
-                                value={newStudent.register_no}
-                                onChange={e => setNewStudent({ ...newStudent, register_no: e.target.value })}
-                            />
-                            <button onClick={addOrUpdateStudent} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 rounded`}>
-                                {editingId ? 'Update' : 'Add'}
-                            </button>
-                            {editingId && <button onClick={resetForms} className="text-gray-500 underline">Cancel</button>}
+                            <div className="flex gap-2">
+                                <input
+                                    className="border p-2 rounded flex-1 sm:w-32"
+                                    placeholder="Reg No."
+                                    value={newStudent.register_no}
+                                    onChange={e => setNewStudent({ ...newStudent, register_no: e.target.value })}
+                                />
+                                <button onClick={addOrUpdateStudent} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 py-2 rounded`}>
+                                    {editingId ? 'Update' : 'Add'}
+                                </button>
+                            </div>
+                            {editingId && <button onClick={resetForms} className="text-gray-500 underline text-center">Cancel</button>}
                         </div>
                     </div>
                     <div className="space-y-2">
@@ -433,7 +440,7 @@ const AdminDashboard = () => {
                 <div className="space-y-6">
                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                         <h3 className="font-bold text-lg">{editingId ? 'Edit Class' : 'Add Class'}</h3>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <select
                                 className="border p-2 rounded"
                                 value={newClass.day}
