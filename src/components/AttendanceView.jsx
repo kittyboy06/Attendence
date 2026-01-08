@@ -10,6 +10,7 @@ const AttendanceView = () => {
     const [attendance, setAttendance] = useState({}); // { studentId: 'Present' | 'Absent' | 'OD' }
     const [showModal, setShowModal] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [pinInput, setPinInput] = useState(''); // Teacher PIN
     const sigCanvas = useRef({});
 
     // Fetch active class based on current time
@@ -88,59 +89,95 @@ const AttendanceView = () => {
         });
     };
 
-    const handleSubmit = async () => {
-        if (sigCanvas.current.isEmpty()) {
-            alert('Teacher signature is required!');
-            return;
-        }
-
-        setUploading(true);
-
-        // 1. Upload Signature
-        const signatureData = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
-        const signatureBlob = await (await fetch(signatureData)).blob();
-        const fileName = `sig_${Date.now()}.png`;
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('signatures')
-            .upload(fileName, signatureBlob);
-
-        if (uploadError) {
-            alert('Error uploading signature: ' + uploadError.message);
+    const verifyAndSubmit = async () => {
+        if (!pinInput) {
+            alert('Please enter your PIN');
             setUploading(false);
             return;
         }
 
-        const { data: publicUrlData } = supabase.storage
-            .from('signatures')
-            .getPublicUrl(fileName);
+        // Verify PIN against DB
+        const { data: teacherData, error: pinError } = await supabase
+            .from('teachers')
+            .select('id')
+            .eq('id', activeClass.teacher_id)
+            .eq('pin', pinInput) // Secure check
+            .maybeSingle();
 
-        const signatureUrl = publicUrlData.publicUrl;
+        if (pinError) {
+            console.error('Error verifying PIN:', pinError);
+            alert('An error occurred during PIN verification.');
+            setUploading(false);
+            return;
+        }
+
+        if (!teacherData) {
+            alert('Invalid PIN! Verification Failed.');
+            setUploading(false);
+            return;
+        }
+
+        // 4. Upload Signature (visual record only)
+        const signatureData = sigCanvas.current.toDataURL('image/png');
+        const signatureBlob = await (await fetch(signatureData)).blob();
+        const fileName = `sig_${Date.now()}.png`;
+        const { error: uploadError } = await supabase.storage.from('signatures').upload(fileName, signatureBlob);
+
+        // Handle upload errors mainly for debugging, proceed if minor
+        const signatureUrl = uploadError
+            ? null
+            : supabase.storage.from('signatures').getPublicUrl(fileName).data.publicUrl;
 
         // 2. Prepare Data
         const absentees = students.filter(s => attendance[s.id] === 'Absent').map(s => s.id);
         const odStudents = students.filter(s => attendance[s.id] === 'OD').map(s => s.id);
 
-        // 3. Insert Log
-        const { error: insertError } = await supabase
-            .from('attendance_logs')
-            .insert({
-                subject_id: activeClass.subject_id,
-                teacher_id: activeClass.teacher_id,
-                absentees_json: absentees,
-                od_students_json: odStudents,
-                teacher_signature_url: signatureUrl,
-                date: new Date().toISOString().split('T')[0]
-            });
+        // 5. Upsert Attendance Log
+        const today = new Date().toISOString().split('T')[0];
 
-        if (insertError) {
-            alert('Error saving attendance: ' + insertError.message);
+        const { data: existingLog } = await supabase
+            .from('attendance_logs')
+            .select('id')
+            .eq('date', today)
+            .eq('subject_id', activeClass.subject_id)
+            .eq('teacher_id', activeClass.teacher_id)
+            .maybeSingle();
+
+        let errorResult;
+        const payload = {
+            subject_id: activeClass.subject_id,
+            teacher_id: activeClass.teacher_id,
+            absentees_json: absentees,
+            od_students_json: odStudents,
+            teacher_signature_url: signatureUrl,
+            date: today
+        };
+
+        if (existingLog) {
+            const { error } = await supabase.from('attendance_logs').update(payload).eq('id', existingLog.id);
+            errorResult = error;
         } else {
-            alert('Attendance Marked Successfully!');
+            const { error } = await supabase.from('attendance_logs').insert(payload);
+            errorResult = error
+        }
+
+        if (errorResult) {
+            alert('Error saving: ' + errorResult.message);
+        } else {
+            alert('Verified & Submitted Successfully!');
             setShowModal(false);
-            // Reset or redirect
+            setPinInput(''); // Clear PIN
         }
         setUploading(false);
+    };
+
+    const handleSubmit = async () => {
+        if (sigCanvas.current.isEmpty()) {
+            alert('Teacher signature is required!');
+            return;
+        }
+        setUploading(true);
+        await verifyAndSubmit();
     };
 
     if (loading) return <div className="p-4 text-center">Checking Schedule...</div>;
