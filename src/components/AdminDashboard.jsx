@@ -23,6 +23,8 @@ const AdminDashboard = () => {
     const [newTeacherPin, setNewTeacherPin] = useState('0000'); // New PIN state
     // Teacher Signature Ref
     const sigCanvasRef = useRef({});
+    const [showSigModal, setShowSigModal] = useState(false);
+    const [pendingSignature, setPendingSignature] = useState(null);
     const [newSubject, setNewSubject] = useState({ name: '', code: '' });
     const [newClass, setNewClass] = useState({ day: 'Monday', start: '', end: '', subject: '', teacher: '' });
     const [newStudent, setNewStudent] = useState({ name: '', register_no: '' });
@@ -75,6 +77,7 @@ const AdminDashboard = () => {
         setNewTeacherName('');
         setNewTeacherTitle('Dr.');
         setNewTeacherPin('0000');
+        setPendingSignature(null);
         if (sigCanvasRef.current && sigCanvasRef.current.clear) sigCanvasRef.current.clear(); // Clear canvas
         setNewSubject({ name: '', code: '' });
         setNewClass({ day: 'Monday', start: '', end: '', subject: '', teacher: '' });
@@ -98,9 +101,8 @@ const AdminDashboard = () => {
         let signatureUrl = null;
 
         // Upload Signature if drawn
-        if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
-            const signatureData = sigCanvasRef.current.toDataURL('image/png');
-            const signatureBlob = await (await fetch(signatureData)).blob();
+        if (pendingSignature) {
+            const signatureBlob = await (await fetch(pendingSignature)).blob();
             const fileName = 'ref_sig_' + Date.now() + '.png';
             const { error: uploadError } = await supabase.storage.from('signatures').upload(fileName, signatureBlob);
             if (!uploadError) {
@@ -265,7 +267,7 @@ const AdminDashboard = () => {
     }
 
     return (
-        <div className="p-4 pb-20 max-w-2xl mx-auto">
+        <div className="h-full overflow-y-auto p-4 pb-20 max-w-2xl mx-auto">
             <h1 className="text-3xl font-bold mb-6 text-gray-800">Admin Dashboard</h1>
 
             {/* Tabs */}
@@ -288,49 +290,94 @@ const AdminDashboard = () => {
                 <div className="space-y-6">
                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                         <h3 className="font-bold text-lg">{editingId ? 'Edit Teacher' : 'Add Teacher'}</h3>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                            <select
-                                className="border p-2 rounded bg-white"
-                                value={newTeacherTitle}
-                                onChange={e => setNewTeacherTitle(e.target.value)}
-                            >
-                                <option>Dr.</option>
-                                <option>Prof.</option>
-                                <option>Mr.</option>
-                                <option>Ms.</option>
-                                <option>Mrs.</option>
-                            </select>
-                            <input
-                                className="border p-2 rounded flex-1"
-                                placeholder="Prof. Name"
-                                value={newTeacherName}
-                                onChange={e => setNewTeacherName(e.target.value)}
-                            />
+                        <div className="flex flex-col gap-3">
+                            <div className="flex flex-col sm:flex-row gap-2">
+                                <select
+                                    className="border p-2 rounded bg-white"
+                                    value={newTeacherTitle}
+                                    onChange={e => setNewTeacherTitle(e.target.value)}
+                                >
+                                    <option>Dr.</option>
+                                    <option>Prof.</option>
+                                    <option>Mr.</option>
+                                    <option>Ms.</option>
+                                    <option>Mrs.</option>
+                                </select>
+                                <input
+                                    className="border p-2 rounded flex-1"
+                                    placeholder="Prof. Name"
+                                    value={newTeacherName}
+                                    onChange={e => setNewTeacherName(e.target.value)}
+                                />
+                            </div>
                             <div className="flex gap-2">
                                 <input
-                                    className="border p-2 rounded w-full sm:w-24"
+                                    className="border p-2 rounded w-24"
                                     placeholder="PIN"
                                     type="tel"
                                     maxLength={4}
                                     value={newTeacherPin}
                                     onChange={e => setNewTeacherPin(e.target.value)}
                                 />
-                                <button onClick={addOrUpdateTeacher} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 py-2 rounded flex-1 sm:flex-none`}>
-                                    {editingId ? 'Update' : 'Add'}
+                                {/* Button to open Signature Modal */}
+                                <button
+                                    onClick={() => { setShowSigModal(true); setTimeout(() => sigCanvasRef.current?.clear(), 100); }}
+                                    className={`flex-1 py-2 rounded text-white font-medium ${pendingSignature ? 'bg-green-500' : 'bg-gray-500'}`}
+                                >
+                                    {pendingSignature ? 'Signature Captured ✓' : 'Capture Signature'}
                                 </button>
                             </div>
-                            {editingId && <button onClick={resetForms} className="text-gray-500 underline text-sm mt-1 sm:mt-0">Cancel</button>}
-                        </div>
-                        {/* Signature Canvas for Reference Signature */}
-                        <div className="border border-gray-300 rounded p-2">
-                            <p className="text-sm text-gray-600 mb-1">Teacher Signature (Reference):</p>
-                            <SignatureCanvas
-                                ref={sigCanvasRef}
-                                canvasProps={{ width: 300, height: 150, className: 'sigCanvas border bg-gray-50' }}
-                            />
-                            <button onClick={() => sigCanvasRef.current.clear()} className="text-xs text-red-500 mt-1">Clear Signature</button>
+
+                            <div className="flex gap-2 mt-2">
+                                <button onClick={addOrUpdateTeacher} className={`${editingId ? 'bg-orange-500' : 'bg-green-600'} text-white px-4 py-2 rounded flex-1`}>
+                                    {editingId ? 'Update Teacher' : 'Add Teacher'}
+                                </button>
+                                {editingId && <button onClick={resetForms} className="text-gray-500 underline text-sm mt-1 sm:mt-0">Cancel</button>}
+                            </div>
                         </div>
                     </div>
+
+                    {/* SIGNATURE MODAL */}
+                    {showSigModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                            <div className="bg-white w-full max-w-lg rounded-2xl p-4 shadow-2xl">
+                                <h3 className="text-lg font-bold mb-2">Draw Signature</h3>
+                                <div className="border-2 border-dashed border-gray-300 rounded overflow-hidden bg-gray-50 relative h-64">
+                                    <SignatureCanvas
+                                        ref={sigCanvasRef}
+                                        canvasProps={{ className: 'sigCanvas w-full h-full' }}
+                                    />
+                                </div>
+                                <div className="flex gap-3 mt-4">
+                                    <button
+                                        onClick={() => { setShowSigModal(false); }}
+                                        className="flex-1 py-2 text-gray-600"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => sigCanvasRef.current.clear()}
+                                        className="flex-1 py-2 text-red-500"
+                                    >
+                                        Clear
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (!sigCanvasRef.current.isEmpty()) {
+                                                setPendingSignature(sigCanvasRef.current.toDataURL('image/png'));
+                                                setShowSigModal(false);
+                                            } else {
+                                                alert("Please sign first");
+                                            }
+                                        }}
+                                        className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-bold"
+                                    >
+                                        Save Signature
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                     <div className="space-y-2">
                         {teachers.map(t => (
                             <div key={t.id} className="bg-white p-3 rounded shadow flex justify-between items-center">

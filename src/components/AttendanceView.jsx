@@ -318,7 +318,7 @@ const AttendanceView = () => {
                                 <SignatureCanvas
                                     ref={sigCanvas}
                                     penColor="black"
-                                    canvasProps={{ width: 300, height: 160, className: 'sigCanvas' }}
+                                    canvasProps={{ width: 340, height: 400, className: 'sigCanvas w-full h-full' }}
                                 />
                                 {verificationMessage && (
                                     <div className="absolute bottom-2 left-0 right-0 text-center text-red-500 text-xs font-bold bg-white/80 p-1">
