@@ -278,13 +278,15 @@ const AttendanceView = () => {
             </div>
 
             {/* Submit Button */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-gray-100 sm:absolute">
-                <button
-                    onClick={() => { setShowModal(true); setIsPinFallback(false); setSignatureAttempts(0); }}
-                    className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
-                >
-                    Verify & Submit
-                </button>
+            <div className="fixed bottom-16 left-0 right-0 p-4 bg-transparent sm:bg-white sm:border-t sm:border-gray-100 sm:absolute sm:bottom-0 z-30 pointer-events-none sm:pointer-events-auto">
+                <div className="pointer-events-auto">
+                    <button
+                        onClick={() => { setShowModal(true); setIsPinFallback(false); setSignatureAttempts(0); }}
+                        className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg active:scale-95 transition-transform"
+                    >
+                        Verify & Submit
+                    </button>
+                </div>
             </div>
 
             {/* Verification Modal */}
