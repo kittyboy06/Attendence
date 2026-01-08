@@ -49,6 +49,20 @@ export const compareSignatures = async (url1, dataUrl2) => {
                 // For "similar", we might want simple intersection over union (IoU)
                 if (hasStroke1 && hasStroke2) {
                     matchingPixels++;
+                } else if (hasStroke1) {
+                    // Check neighbors in img2 (simple 1px tolerance)
+                    const idx = i;
+                    // Neighbor offsets: -4 (left), +4 (right), -4*width (up), +4*width (down)
+                    // This is a naive check but helps with thin strokes
+                    if (data2[idx - 4] > 50 || data2[idx + 4] > 50 || data2[idx - width * 4 + 3] > 50 || data2[idx + width * 4 + 3] > 50) {
+                        matchingPixels++;
+                    }
+                } else if (hasStroke2) {
+                    // Check neighbors in img1
+                    const idx = i;
+                    if (data1[idx - 4] > 50 || data1[idx + 4] > 50 || data1[idx - width * 4 + 3] > 50 || data1[idx + width * 4 + 3] > 50) {
+                        matchingPixels++;
+                    }
                 }
             }
         }

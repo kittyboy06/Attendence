@@ -11,6 +11,7 @@ const AttendanceView = () => {
     const [attendance, setAttendance] = useState({}); // { studentId: 'Present' | 'Absent' | 'OD' }
     const [showModal, setShowModal] = useState(false);
     const [uploading, setUploading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     // Verification State
     const [pinInput, setPinInput] = useState('');
@@ -186,7 +187,7 @@ const AttendanceView = () => {
             const similarity = await compareSignatures(teacher.signature_url, currentSigData);
             console.log("Signature Similarity:", similarity);
 
-            const THRESHOLD = 0.15; // 15% overlap match - conservative start
+            const THRESHOLD = 0.05; // 5% match - very lenient
 
             if (similarity >= THRESHOLD) {
                 // Upload this valid signature and save
@@ -237,9 +238,9 @@ const AttendanceView = () => {
     );
 
     return (
-        <div className="max-w-md mx-auto bg-white min-h-screen pb-32 shadow-md sm:rounded-xl sm:overflow-hidden sm:min-h-0 sm:my-10">
-            {/* Header */}
-            <div className="bg-blue-600 text-white p-6 rounded-b-3xl shadow-lg relative z-10">
+        <div className="flex flex-col h-full bg-white relative">
+            {/* Header - Fixed at Top */}
+            <div className="flex-none bg-blue-600 text-white p-6 rounded-b-3xl shadow-lg relative z-20">
                 <h1 className="text-2xl font-bold">{activeClass.subjects.name}</h1>
                 <div className="flex justify-between items-center mt-2 opacity-90">
                     <span className="text-sm font-medium bg-blue-500 px-2 py-1 rounded">{activeClass.subjects.code}</span>
@@ -248,11 +249,27 @@ const AttendanceView = () => {
                 <div className="mt-4 text-blue-100 text-sm">
                     {activeClass.start_time} - {activeClass.end_time}
                 </div>
+
+                {/* Search Bar Embedded in Header area for better look (optional) or just below */}
             </div>
 
-            {/* Student List */}
-            <div className="p-4 space-y-3 mt-2">
-                {students.map(student => (
+            {/* Search BarContainer */}
+            <div className="flex-none px-4 mt-4 z-10">
+                <input
+                    type="text"
+                    placeholder="Search by Name or Reg No..."
+                    className="w-full p-3 rounded-xl border border-gray-200 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
+
+            {/* Scrollable Student List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-4">
+                {students.filter(s =>
+                    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    s.register_no.toLowerCase().includes(searchTerm.toLowerCase())
+                ).map(student => (
                     <div
                         key={student.id}
                         onClick={() => toggleStatus(student.id)}
@@ -277,8 +294,8 @@ const AttendanceView = () => {
                 ))}
             </div>
 
-            {/* Submit Button - Floating above Nav */}
-            <div className="fixed bottom-20 left-0 right-0 px-4 py-2 sm:static sm:p-4 z-50 pointer-events-auto">
+            {/* Submit Button - Static at Bottom of Flex Column */}
+            <div className="flex-none p-4 bg-white border-t border-gray-100 z-30">
                 <button
                     onClick={() => { setShowModal(true); setIsPinFallback(false); setSignatureAttempts(0); }}
                     className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-xl shadow-blue-200 active:scale-95 transition-transform"
@@ -289,7 +306,7 @@ const AttendanceView = () => {
 
             {/* Verification Modal */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                <div className="absolute inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4">
                     <div className="bg-white w-full max-w-sm rounded-2xl p-6 shadow-2xl animate-slide-up">
                         <h3 className="text-lg font-bold text-gray-900 mb-2">Teacher Verification</h3>
                         <p className="text-sm text-gray-500 mb-4">
