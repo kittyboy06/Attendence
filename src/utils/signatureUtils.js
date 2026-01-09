@@ -1,81 +1,33 @@
 
 /**
  * Compares two signature images and returns a similarity score (0 to 1).
+ * Checks the signature in 4 orientations (0, 90, 180, 270 degrees) to allow for rotated signing.
  * @param {string} url1 - URL of the reference image.
  * @param {string} dataUrl2 - Base64 Data URL of the new signature.
- * @returns {Promise<number>} - Similarity score (0.0 to 1.0).
+ * @returns {Promise<number>} - Best similarity score (0.0 to 1.0) found among all rotations.
  */
 export const compareSignatures = async (url1, dataUrl2) => {
     try {
-        const img1 = await loadImage(url1);
-        const img2 = await loadImage(dataUrl2);
+        const img1 = await loadImage(url1); // Reference
+        const img2 = await loadImage(dataUrl2); // Input
 
         const width = 300; // Standardize width
         const height = 150; // Standardize height
 
-        const canvas1 = document.createElement('canvas');
-        const canvas2 = document.createElement('canvas');
-        canvas1.width = width;
-        canvas1.height = height;
-        canvas2.width = width;
-        canvas2.height = height;
+        // Get pixel data for Reference (img1) - Fixed Orientation
+        const data1 = getImageData(img1, width, height);
 
-        const ctx1 = canvas1.getContext('2d');
-        const ctx2 = canvas2.getContext('2d');
+        // Check all 4 rotations for Input (img2) and find best match
+        const scores = [
+            compareData(data1, getImageData(img2, width, height, 0), width, height),    // 0 deg
+            compareData(data1, getImageData(img2, width, height, 90), width, height),   // 90 deg
+            compareData(data1, getImageData(img2, width, height, 180), width, height),  // 180 deg
+            compareData(data1, getImageData(img2, width, height, 270), width, height)   // 270 deg
+        ];
 
-        // Draw images ensuring they cover the canvas or center them
-        ctx1.drawImage(img1, 0, 0, width, height);
-        ctx2.drawImage(img2, 0, 0, width, height);
+        // Return the highest similarity score
+        return Math.max(...scores);
 
-        const data1 = ctx1.getImageData(0, 0, width, height).data;
-        const data2 = ctx2.getImageData(0, 0, width, height).data;
-
-        let matchingPixels = 0;
-        let totalSignificantPixels = 0;
-
-        // Simple pixel overlap comparison
-        // We look for non-transparent pixels (alpha > 0)
-        for (let i = 0; i < data1.length; i += 4) {
-            const alpha1 = data1[i + 3];
-            const alpha2 = data2[i + 3];
-
-            const hasStroke1 = alpha1 > 50;
-            const hasStroke2 = alpha2 > 50;
-
-            if (hasStroke1 || hasStroke2) {
-                totalSignificantPixels++;
-                // If both have strokes at this position, it's a match
-                // We can also allow some spatial tolerance (e.g. adjacent pixels), but straight overlap is a good baseline
-                // For "similar", we might want simple intersection over union (IoU)
-                if (hasStroke1 && hasStroke2) {
-                    matchingPixels++;
-                } else if (hasStroke1) {
-                    // Check neighbors in img2 (simple 1px tolerance)
-                    const idx = i;
-                    // Neighbor offsets: -4 (left), +4 (right), -4*width (up), +4*width (down)
-                    // This is a naive check but helps with thin strokes
-                    if (data2[idx - 4] > 50 || data2[idx + 4] > 50 || data2[idx - width * 4 + 3] > 50 || data2[idx + width * 4 + 3] > 50) {
-                        matchingPixels++;
-                    }
-                } else if (hasStroke2) {
-                    // Check neighbors in img1
-                    const idx = i;
-                    if (data1[idx - 4] > 50 || data1[idx + 4] > 50 || data1[idx - width * 4 + 3] > 50 || data1[idx + width * 4 + 3] > 50) {
-                        matchingPixels++;
-                    }
-                }
-            }
-        }
-
-        if (totalSignificantPixels === 0) return 0; // Both empty
-
-        // IoU (Intersection over Union) Score
-        // But since signatures can be slightly offset, strict pixel matching might differ.
-        // Let's rely on a simpler "overlap ratio" for now.
-        // If 30-40% of the combined strokes overlap, it's usually the same shape roughly drawn.
-        // Signatures are tricky for exact pixel match.
-
-        return matchingPixels / totalSignificantPixels;
     } catch (error) {
         console.error("Signature comparison error:", error);
         return 0;
@@ -90,4 +42,78 @@ const loadImage = (src) => {
         img.onerror = (e) => reject(e);
         img.src = src;
     });
+};
+
+/**
+ * Gets pixel data from an image drawn on a canvas with specific rotation.
+ */
+const getImageData = (img, width, height, rotationDeg = 0) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    ctx.save();
+    // Move to center
+    ctx.translate(width / 2, height / 2);
+    // Rotate
+    ctx.rotate((rotationDeg * Math.PI) / 180);
+
+    // Draw image centered. 
+    // If rotated 90/270, we might need to swap scaling or draw logic if aspect ratio differs rigorously, 
+    // but for simple signature box matching, fitting it into the same box is usually checking "shape".
+    // Actually, simply drawing it rotated might crop it if square vs rectangle.
+    // Let's assume the signature content is roughly centered.
+    if (rotationDeg === 90 || rotationDeg === 270) {
+        // Fit height to width and width to height? or just draw?
+        // Let's just draw with same dimensions centered. Content might scale.
+        ctx.drawImage(img, -height / 2, -width / 2, height, width);
+    } else {
+        ctx.drawImage(img, -width / 2, -height / 2, width, height);
+    }
+
+    ctx.restore();
+
+    return ctx.getImageData(0, 0, width, height).data;
+};
+
+/**
+ * Compare two pixel data arrays using stroke overlap matching with tolerance.
+ */
+const compareData = (data1, data2, width, height) => {
+    let matchingPixels = 0;
+    let totalSignificantPixels = 0;
+
+    for (let i = 0; i < data1.length; i += 4) {
+        const alpha1 = data1[i + 3];
+        const alpha2 = data2[i + 3];
+
+        const hasStroke1 = alpha1 > 50;
+        const hasStroke2 = alpha2 > 50;
+
+        if (hasStroke1 || hasStroke2) {
+            totalSignificantPixels++;
+            if (hasStroke1 && hasStroke2) {
+                matchingPixels++;
+            } else if (hasStroke1) {
+                // Check neighbors in data2 (tolerance)
+                if (checkNeighbors(data2, i, width)) matchingPixels++;
+            } else if (hasStroke2) {
+                // Check neighbors in data1 (tolerance)
+                if (checkNeighbors(data1, i, width)) matchingPixels++;
+            }
+        }
+    }
+
+    if (totalSignificantPixels === 0) return 0;
+    return matchingPixels / totalSignificantPixels;
+};
+
+const checkNeighbors = (data, idx, width) => {
+    // Neighbor offsets: -4 (left), +4 (right), -4*width (up), +4*width (down)
+    const offsets = [-4, 4, -width * 4, width * 4];
+    for (let o of offsets) {
+        if (data[idx + o + 3] > 50) return true;
+    }
+    return false;
 };
