@@ -3,8 +3,15 @@ import SignatureCanvas from 'react-signature-canvas';
 import { supabase } from '../lib/supabaseClient';
 import { format } from 'date-fns';
 import { compareSignatures } from '../utils/signatureUtils';
+import LoadingBar from './LoadingBar';
+
+import { useLocation, useNavigate } from 'react-router-dom';
 
 const AttendanceView = () => {
+    const navigate = useNavigate();
+    const editMode = location.state?.editMode;
+    const logData = location.state?.logData;
+
     const [loading, setLoading] = useState(true);
     const [activeClass, setActiveClass] = useState(null);
     const [students, setStudents] = useState([]);
@@ -21,10 +28,26 @@ const AttendanceView = () => {
 
     const sigCanvas = useRef({});
 
-    // Fetch active class based on current time
+    // Fetch active class based on current time OR Edit Data
     useEffect(() => {
-        checkActiveClass();
-    }, []);
+        if (editMode && logData) {
+            // Edit Mode: Hydrate from passing data
+            setActiveClass({
+                id: null, // time_table id not strictly needed for update if we have log ID, but useful for display
+                subject_id: logData.subject_id,
+                teacher_id: logData.teacher_id,
+                // Mock these for display if not fetching full time table relation, or simpler:
+                subjects: logData.subjects,
+                teachers: logData.teachers,
+                start_time: 'EDIT',
+                end_time: 'MODE'
+            });
+            fetchStudents(logData);
+            setLoading(false);
+        } else {
+            checkActiveClass();
+        }
+    }, [editMode, logData]);
 
     const checkActiveClass = async () => {
         setLoading(true);
@@ -51,14 +74,14 @@ const AttendanceView = () => {
 
         if (data) {
             setActiveClass(data);
-            fetchStudents();
+            fetchStudents(null);
         } else {
             setActiveClass(null);
         }
         setLoading(false);
     };
 
-    const fetchStudents = async () => {
+    const fetchStudents = async (existingLog = null) => {
         const { data, error } = await supabase
             .from('students')
             .select('*')
@@ -67,15 +90,28 @@ const AttendanceView = () => {
         if (error) console.error('Error fetching students:', error);
         if (data) {
             setStudents(data);
-            // Initialize all as Present, UNLESS status is 'Long Absent' or 'Drop Out'
             const initialStatus = {};
-            data.forEach(s => {
-                if (s.status === 'Long Absent' || s.status === 'Drop Out') {
-                    initialStatus[s.id] = 'Absent';
-                } else {
-                    initialStatus[s.id] = 'Present';
-                }
-            });
+
+            if (existingLog) {
+                // Pre-fill from Log
+                const absentees = existingLog.absentees_json || [];
+                const ods = existingLog.od_students_json || [];
+
+                data.forEach(s => {
+                    if (absentees.includes(s.id)) initialStatus[s.id] = 'Absent';
+                    else if (ods.includes(s.id)) initialStatus[s.id] = 'OD';
+                    else initialStatus[s.id] = 'Present';
+                });
+            } else {
+                // Default Initialization
+                data.forEach(s => {
+                    if (s.status === 'Long Absent' || s.status === 'Drop Out') {
+                        initialStatus[s.id] = 'Absent';
+                    } else {
+                        initialStatus[s.id] = 'Present';
+                    }
+                });
+            }
             setAttendance(initialStatus);
         }
     };
@@ -96,43 +132,67 @@ const AttendanceView = () => {
         const absentees = students.filter(s => attendance[s.id] === 'Absent').map(s => s.id);
         const odStudents = students.filter(s => attendance[s.id] === 'OD').map(s => s.id);
 
-        // 5. Upsert Attendance Log
-        const today = new Date().toISOString().split('T')[0];
-
-        const { data: existingLog } = await supabase
-            .from('attendance_logs')
-            .select('id')
-            .eq('date', today)
-            .eq('subject_id', activeClass.subject_id)
-            .eq('teacher_id', activeClass.teacher_id)
-            .maybeSingle();
-
         let errorResult;
-        const payload = {
-            subject_id: activeClass.subject_id,
-            teacher_id: activeClass.teacher_id,
-            absentees_json: absentees,
-            od_students_json: odStudents,
-            teacher_signature_url: signatureUrlToSave,
-            date: today
-        };
 
-        if (existingLog) {
-            const { error } = await supabase.from('attendance_logs').update(payload).eq('id', existingLog.id);
+        if (editMode && logData) {
+            // UPDATE EXISTING RECORD
+            const payload = {
+                absentees_json: absentees,
+                od_students_json: odStudents,
+                // Optionally update signature? If they re-verified, yes.
+                ...(signatureUrlToSave && { teacher_signature_url: signatureUrlToSave })
+            };
+
+            const { error } = await supabase
+                .from('attendance_logs')
+                .update(payload)
+                .eq('id', logData.id);
             errorResult = error;
+
         } else {
-            const { error } = await supabase.from('attendance_logs').insert(payload);
-            errorResult = error
+            // INSERT NEW RECORD
+            const today = new Date().toISOString().split('T')[0];
+            const loadPayload = {
+                subject_id: activeClass.subject_id,
+                teacher_id: activeClass.teacher_id,
+                absentees_json: absentees,
+                od_students_json: odStudents,
+                teacher_signature_url: signatureUrlToSave,
+                date: today
+            };
+
+            // Check for duplicate before insert (Safety check)
+            const { data: existingCheck } = await supabase
+                .from('attendance_logs')
+                .select('id')
+                .eq('date', today)
+                .eq('subject_id', activeClass.subject_id)
+                .eq('teacher_id', activeClass.teacher_id)
+                .maybeSingle();
+
+            if (existingCheck) {
+                // Actually maybe just update it if found?
+                // For now, let's just update the existing one if collision (Idempotency)
+                const { error } = await supabase.from('attendance_logs').update(loadPayload).eq('id', existingCheck.id);
+                errorResult = error;
+            } else {
+                const { error } = await supabase.from('attendance_logs').insert(loadPayload);
+                errorResult = error;
+            }
         }
 
         if (errorResult) {
             alert('Error saving: ' + errorResult.message);
         } else {
-            alert('Verified & Submitted Successfully!');
-            setShowModal(false);
-            setPinInput('');
-            setSignatureAttempts(0);
-            setIsPinFallback(false);
+            alert(editMode ? 'Attendance Updated Successfully!' : 'Verified & Submitted Successfully!');
+            if (editMode) {
+                navigate('/admin'); // Go back to admin history
+            } else {
+                setShowModal(false);
+                setPinInput('');
+                setSignatureAttempts(0);
+                setIsPinFallback(false);
+            }
         }
     };
 
@@ -280,9 +340,9 @@ const AttendanceView = () => {
                         key={student.id}
                         onClick={() => toggleStatus(student.id)}
                         className={`p-4 rounded-xl flex justify-between items-center cursor-pointer transition-all duration-200 border-2 ${(student.status === 'Long Absent' || student.status === 'Drop Out') ? 'border-red-500 bg-red-100 opacity-75' :
-                                attendance[student.id] === 'Present' ? 'border-transparent bg-white shadow-sm hover:shadow-md' :
-                                    attendance[student.id] === 'Absent' ? 'border-red-500 bg-red-50 shadow-inner' :
-                                        'border-yellow-500 bg-yellow-50 shadow-inner'
+                            attendance[student.id] === 'Present' ? 'border-transparent bg-white shadow-sm hover:shadow-md' :
+                                attendance[student.id] === 'Absent' ? 'border-red-500 bg-red-50 shadow-inner' :
+                                    'border-yellow-500 bg-yellow-50 shadow-inner'
                             }`}
                     >
                         <div>

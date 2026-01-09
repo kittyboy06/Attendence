@@ -7,6 +7,7 @@ const HistoryView = () => {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
     const [students, setStudents] = useState({}); // Map id -> name
+    const [expandedLogId, setExpandedLogId] = useState(null);
 
     useEffect(() => {
         fetchStudents();
@@ -123,25 +124,59 @@ const HistoryView = () => {
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {logs.map(log => (
-                        <div key={log.id} className="bg-white p-4 rounded-lg shadow border border-gray-100">
-                            <div className="flex justify-between items-start">
-                                <div>
-                                    <h3 className="font-bold text-lg text-gray-800">{log.subjects.name}</h3>
-                                    <p className="text-sm text-gray-500">{log.subjects.code} • {log.teachers.name}</p>
-                                </div>
-                            </div>
+                    {logs.map(log => {
+                        const isExpanded = expandedLogId === log.id;
+                        const absenteeNames = log.absentees_json.map(id => students[id]?.name).filter(Boolean);
+                        const odNames = log.od_students_json.map(id => students[id]?.name).filter(Boolean);
 
-                            <div className="mt-4 flex gap-4 text-sm">
-                                <div className="bg-red-50 text-red-700 px-2 py-1 rounded">
-                                    Absent: <span className="font-bold">{log.absentees_json.length}</span>
+                        return (
+                            <div key={log.id} className="bg-white p-4 rounded-lg shadow border border-gray-100 cursor-pointer" onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="font-bold text-lg text-gray-800">{log.subjects.name}</h3>
+                                        <p className="text-sm text-gray-500">{log.subjects.code} • {log.teachers.name}</p>
+                                    </div>
+                                    <div className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''} text-gray-400`}>
+                                        ▼
+                                    </div>
                                 </div>
-                                <div className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded">
-                                    OD: <span className="font-bold">{log.od_students_json.length}</span>
+
+                                <div className="mt-4 flex gap-4 text-sm">
+                                    <div className="bg-red-50 text-red-700 px-2 py-1 rounded">
+                                        Absent: <span className="font-bold">{log.absentees_json.length}</span>
+                                    </div>
+                                    <div className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded">
+                                        OD: <span className="font-bold">{log.od_students_json.length}</span>
+                                    </div>
                                 </div>
+
+                                {isExpanded && (
+                                    <div className="mt-4 pt-4 border-t border-gray-100 text-sm animate-fade-in">
+                                        <div className="mb-3">
+                                            <span className="font-bold text-red-600 block mb-1">Absentees:</span>
+                                            {absenteeNames.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {absenteeNames.map((name, i) => (
+                                                        <span key={i} className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs border border-red-100">{name}</span>
+                                                    ))}
+                                                </div>
+                                            ) : <span className="text-gray-400 italic">None</span>}
+                                        </div>
+                                        <div>
+                                            <span className="font-bold text-yellow-600 block mb-1">On Duty:</span>
+                                            {odNames.length > 0 ? (
+                                                <div className="flex flex-wrap gap-1">
+                                                    {odNames.map((name, i) => (
+                                                        <span key={i} className="bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded text-xs border border-yellow-100">{name}</span>
+                                                    ))}
+                                                </div>
+                                            ) : <span className="text-gray-400 italic">None</span>}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>

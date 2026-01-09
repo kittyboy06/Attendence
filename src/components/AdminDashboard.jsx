@@ -1,8 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { supabase } from '../lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
+import LoadingBar from './LoadingBar';
 
 const AdminDashboard = () => {
+    const navigate = useNavigate();
     const [isAuthenticated, setIsAuthenticated] = useState(false);
     const [password, setPassword] = useState('');
     const [activeTab, setActiveTab] = useState('teachers'); // teachers, subjects, schedule
@@ -15,6 +18,7 @@ const AdminDashboard = () => {
     const [students, setStudents] = useState([]);
     const [historyLogs, setHistoryLogs] = useState([]);
     const [historyDate, setHistoryDate] = useState(new Date().toISOString().split('T')[0]);
+    const [expandedLogId, setExpandedLogId] = useState(null);
 
     // Forms
     const [editingId, setEditingId] = useState(null); // Track which item is being edited
@@ -68,6 +72,12 @@ const AdminDashboard = () => {
                 .select('*, subjects(name, code), teachers(name)')
                 .eq('date', historyDate);
             setHistoryLogs(data || []);
+
+            // Also fetch students to resolve names
+            if (students.length === 0) {
+                const { data: studs } = await supabase.from('students').select('*');
+                setStudents(studs || []);
+            }
         }
         setLoading(false);
     };
@@ -508,9 +518,10 @@ const AdminDashboard = () => {
                 <div className="space-y-6">
                     <div className="bg-white p-4 rounded-lg shadow space-y-3">
                         <h3 className="font-bold text-lg">{editingId ? 'Edit Class' : 'Add Class'}</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-3">
+                            <label className="font-semibold text-sm text-gray-600 block sm:hidden">Day</label>
                             <select
-                                className="border p-2 rounded"
+                                className="border p-2 rounded w-full"
                                 value={newClass.day}
                                 onChange={e => setNewClass({ ...newClass, day: e.target.value })}
                             >
@@ -518,12 +529,27 @@ const AdminDashboard = () => {
                                     <option key={d} value={d}>{d}</option>
                                 ))}
                             </select>
-                            <div className="grid grid-cols-2 gap-2">
-                                <input type="time" className="border p-2 rounded w-full" value={newClass.start} onChange={e => setNewClass({ ...newClass, start: e.target.value })} />
-                                <input type="time" className="border p-2 rounded w-full" value={newClass.end} onChange={e => setNewClass({ ...newClass, end: e.target.value })} />
+
+                            <div className="space-y-2">
+                                <label className="font-semibold text-sm text-gray-600 block sm:hidden">Time</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <input
+                                        type="time"
+                                        className="border p-2 rounded w-full"
+                                        value={newClass.start}
+                                        onChange={e => setNewClass({ ...newClass, start: e.target.value })}
+                                    />
+                                    <input
+                                        type="time"
+                                        className="border p-2 rounded w-full"
+                                        value={newClass.end}
+                                        onChange={e => setNewClass({ ...newClass, end: e.target.value })}
+                                    />
+                                </div>
                             </div>
+
                             <select
-                                className="border p-2 rounded"
+                                className="border p-2 rounded w-full"
                                 value={newClass.subject}
                                 onChange={e => setNewClass({ ...newClass, subject: e.target.value })}
                             >
@@ -531,7 +557,7 @@ const AdminDashboard = () => {
                                 {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                             </select>
                             <select
-                                className="border p-2 rounded"
+                                className="border p-2 rounded w-full"
                                 value={newClass.teacher}
                                 onChange={e => setNewClass({ ...newClass, teacher: e.target.value })}
                             >
@@ -579,23 +605,64 @@ const AdminDashboard = () => {
                     </div>
                     <div className="space-y-2">
                         {historyLogs.length === 0 ? <p className="text-center text-gray-500">No records found.</p> : null}
-                        {historyLogs.map(log => (
-                            <div key={log.id} className="bg-white p-3 rounded shadow flex justify-between items-center">
-                                <div>
-                                    <div className="font-bold">{log.subjects?.name}</div>
-                                    <div className="text-xs text-gray-500">Teacher: {log.teachers?.name}</div>
-                                    <div className="text-xs text-gray-500">
-                                        Absentees: {log.absentees_json?.length} | OD: {log.od_students_json?.length}
+                        {historyLogs.map(log => {
+                            const isExpanded = expandedLogId === log.id;
+                            const absenteeNames = students.filter(s => log.absentees_json?.includes(s.id)).map(s => s.name);
+                            const odNames = students.filter(s => log.od_students_json?.includes(s.id)).map(s => s.name);
+
+                            return (
+                                <div key={log.id} className="bg-white p-3 rounded shadow cursor-pointer" onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
+                                    <div className="flex justify-between items-center">
+                                        <div>
+                                            <div className="font-bold">{log.subjects?.name}</div>
+                                            <div className="text-xs text-gray-500">Teacher: {log.teachers?.name}</div>
+                                            <div className="text-xs text-gray-500">
+                                                Absentees: <span className="text-red-600 font-bold">{log.absentees_json?.length}</span> | OD: <span className="text-yellow-600 font-bold">{log.od_students_json?.length}</span>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); navigate('/mark', { state: { editMode: true, logData: log } }); }}
+                                                className="bg-blue-50 text-blue-600 px-3 py-1 rounded text-sm hover:bg-blue-100"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={(e) => { e.stopPropagation(); deleteLog(log.id); }}
+                                                className="bg-red-50 text-red-600 px-3 py-1 rounded text-sm hover:bg-red-100"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </div>
+
+                                    {isExpanded && (
+                                        <div className="mt-3 pt-3 border-t text-sm animate-fade-in">
+                                            <div className="mb-2">
+                                                <span className="font-bold text-red-600 block">Absentees:</span>
+                                                {absenteeNames.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {absenteeNames.map(name => (
+                                                            <span key={name} className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs border border-red-100">{name}</span>
+                                                        ))}
+                                                    </div>
+                                                ) : <span className="text-gray-400 italic">None</span>}
+                                            </div>
+                                            <div>
+                                                <span className="font-bold text-yellow-600 block">On Duty:</span>
+                                                {odNames.length > 0 ? (
+                                                    <div className="flex flex-wrap gap-1 mt-1">
+                                                        {odNames.map(name => (
+                                                            <span key={name} className="bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded text-xs border border-yellow-100">{name}</span>
+                                                        ))}
+                                                    </div>
+                                                ) : <span className="text-gray-400 italic">None</span>}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                                <button
-                                    onClick={() => deleteLog(log.id)}
-                                    className="bg-red-50 text-red-600 px-3 py-1 rounded text-sm hover:bg-red-100"
-                                >
-                                    Delete
-                                </button>
-                            </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 </div>
             )}
