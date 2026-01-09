@@ -1,8 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { format } from 'date-fns';
+import { useNavigate, useLocation } from 'react-router-dom';
+import LoadingBar from './LoadingBar';
 
 const HistoryView = () => {
+    const navigate = useNavigate();
+    const location = useLocation();
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -55,16 +59,16 @@ const HistoryView = () => {
 
         logs.forEach((log, index) => {
             const sno = (index + 1).toString().padEnd(4);
-            const subject = (log.subjects.name.substring(0, 20)).padEnd(21);
-            const teacher = (log.teachers.name.substring(0, 20)).padEnd(20);
+            const subject = (log.subjects?.name.substring(0, 20) || 'Unknown').padEnd(21);
+            const teacher = (log.teachers?.name.substring(0, 20) || 'Unknown').padEnd(20);
 
             // Get Reg Nos for Absentees
-            const absentRegs = log.absentees_json
+            const absentRegs = (log.absentees_json || [])
                 .map(id => students[id]?.register_no)
                 .filter(Boolean)
                 .join(', ');
 
-            const odRegs = log.od_students_json
+            const odRegs = (log.od_students_json || [])
                 .map(id => students[id]?.register_no)
                 .filter(Boolean)
                 .join(', ');
@@ -72,11 +76,6 @@ const HistoryView = () => {
             // Verified Status
             // If signature exists -> Signed, else if generic -> Verified
             const isVerified = log.teacher_signature_url ? 'Signed' : 'Verified';
-
-            // Allow wrapping for long lists of absentees? 
-            // For simple text table, let's just truncate or let it run long? 
-            // User asked for specific columns, let's try to fit in one line or handle it simply.
-            // Let's just put the string.
 
             content += `| ${sno} | ${subject} | ${teacher} | ${absentRegs.padEnd(28)} | ${odRegs.padEnd(28)} | ${isVerified.padEnd(8)} |\n`;
         });
@@ -116,9 +115,9 @@ const HistoryView = () => {
                 />
             </div>
 
-            {loading ? (
-                <p className="text-center py-4">Loading records...</p>
-            ) : logs.length === 0 ? (
+            {loading && <LoadingBar />}
+
+            {!loading && logs.length === 0 ? (
                 <div className="text-center text-gray-500 py-10 bg-gray-50 rounded-lg">
                     No records found for this date.
                 </div>
@@ -126,27 +125,38 @@ const HistoryView = () => {
                 <div className="space-y-4">
                     {logs.map(log => {
                         const isExpanded = expandedLogId === log.id;
-                        const absenteeNames = log.absentees_json.map(id => students[id]?.name).filter(Boolean);
-                        const odNames = log.od_students_json.map(id => students[id]?.name).filter(Boolean);
+                        const absenteeNames = (log.absentees_json || []).map(id => students[id]?.name).filter(Boolean);
+                        const odNames = (log.od_students_json || []).map(id => students[id]?.name).filter(Boolean);
 
                         return (
                             <div key={log.id} className="bg-white p-4 rounded-lg shadow border border-gray-100 cursor-pointer" onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
                                 <div className="flex justify-between items-start">
                                     <div>
-                                        <h3 className="font-bold text-lg text-gray-800">{log.subjects.name}</h3>
-                                        <p className="text-sm text-gray-500">{log.subjects.code} • {log.teachers.name}</p>
+                                        <h3 className="font-bold text-lg text-gray-800">{log.subjects?.name || 'Unknown Subject'}</h3>
+                                        <p className="text-sm text-gray-500">{log.subjects?.code || '---'} • {log.teachers?.name || 'Unknown Teacher'}</p>
                                     </div>
-                                    <div className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''} text-gray-400`}>
-                                        ▼
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                navigate('/', { state: { editMode: true, logData: log, from: location.pathname } });
+                                            }}
+                                            className="px-3 py-1 text-xs font-bold text-blue-600 bg-blue-50 rounded hover:bg-blue-100 border border-blue-200"
+                                        >
+                                            Edit
+                                        </button>
+                                        <div className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''} text-gray-400`}>
+                                            ▼
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div className="mt-4 flex gap-4 text-sm">
                                     <div className="bg-red-50 text-red-700 px-2 py-1 rounded">
-                                        Absent: <span className="font-bold">{log.absentees_json.length}</span>
+                                        Absent: <span className="font-bold">{(log.absentees_json || []).length}</span>
                                     </div>
                                     <div className="bg-yellow-50 text-yellow-700 px-2 py-1 rounded">
-                                        OD: <span className="font-bold">{log.od_students_json.length}</span>
+                                        OD: <span className="font-bold">{(log.od_students_json || []).length}</span>
                                     </div>
                                 </div>
 

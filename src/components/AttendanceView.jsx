@@ -9,10 +9,13 @@ import { useLocation, useNavigate } from 'react-router-dom';
 
 const AttendanceView = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const editMode = location.state?.editMode;
     const logData = location.state?.logData;
+    const fromPath = location.state?.from || '/admin';
 
     const [loading, setLoading] = useState(true);
+    const [submitting, setSubmitting] = useState(false);
     const [activeClass, setActiveClass] = useState(null);
     const [students, setStudents] = useState([]);
     const [attendance, setAttendance] = useState({}); // { studentId: 'Present' | 'Absent' | 'OD' }
@@ -36,9 +39,9 @@ const AttendanceView = () => {
                 id: null, // time_table id not strictly needed for update if we have log ID, but useful for display
                 subject_id: logData.subject_id,
                 teacher_id: logData.teacher_id,
-                // Mock these for display if not fetching full time table relation, or simpler:
-                subjects: logData.subjects,
-                teachers: logData.teachers,
+                // Ensure safe defaults if relations are missing
+                subjects: logData.subjects || { name: 'Unknown Subject', code: '---' },
+                teachers: logData.teachers || { name: 'Unknown Teacher' },
                 start_time: 'EDIT',
                 end_time: 'MODE'
             });
@@ -128,6 +131,7 @@ const AttendanceView = () => {
     };
 
     const submitAttendance = async (signatureUrlToSave = null) => {
+        setSubmitting(true);
         // 2. Prepare Data
         const absentees = students.filter(s => attendance[s.id] === 'Absent').map(s => s.id);
         const odStudents = students.filter(s => attendance[s.id] === 'OD').map(s => s.id);
@@ -186,7 +190,7 @@ const AttendanceView = () => {
         } else {
             alert(editMode ? 'Attendance Updated Successfully!' : 'Verified & Submitted Successfully!');
             if (editMode) {
-                navigate('/admin'); // Go back to admin history
+                navigate(fromPath); // Go back to where we came from
             } else {
                 setShowModal(false);
                 setPinInput('');
@@ -194,6 +198,7 @@ const AttendanceView = () => {
                 setIsPinFallback(false);
             }
         }
+        setSubmitting(false);
     };
 
 
@@ -306,17 +311,16 @@ const AttendanceView = () => {
     return (
         <div className="flex flex-col h-full bg-white relative">
             {/* Header - Fixed at Top */}
+            {submitting && <LoadingBar />}
             <div className="flex-none bg-blue-600 text-white p-6 rounded-b-3xl shadow-lg relative z-20">
-                <h1 className="text-2xl font-bold">{activeClass.subjects.name}</h1>
+                <h1 className="text-2xl font-bold">{activeClass.subjects?.name || 'Unknown Class'}</h1>
                 <div className="flex justify-between items-center mt-2 opacity-90">
-                    <span className="text-sm font-medium bg-blue-500 px-2 py-1 rounded">{activeClass.subjects.code}</span>
-                    <span className="text-sm">{activeClass.teachers.name}</span>
+                    <span className="text-sm font-medium bg-blue-500 px-2 py-1 rounded">{activeClass.subjects?.code || '---'}</span>
+                    <span className="text-sm">{activeClass.teachers?.name || 'Unknown Teacher'}</span>
                 </div>
                 <div className="mt-4 text-blue-100 text-sm">
                     {activeClass.start_time} - {activeClass.end_time}
                 </div>
-
-                {/* Search Bar Embedded in Header area for better look (optional) or just below */}
             </div>
 
             {/* Search BarContainer */}
@@ -333,8 +337,8 @@ const AttendanceView = () => {
             {/* Scrollable Student List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 pb-4">
                 {students.filter(s =>
-                    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    s.register_no.toLowerCase().includes(searchTerm.toLowerCase())
+                    s.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    s.register_no?.toLowerCase().includes(searchTerm.toLowerCase())
                 ).map(student => (
                     <div
                         key={student.id}
