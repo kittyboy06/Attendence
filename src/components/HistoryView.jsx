@@ -10,7 +10,7 @@ const HistoryView = () => {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [students, setStudents] = useState({}); // Map id -> name
+    const [students, setStudents] = useState({}); // Map id -> student object
     const [expandedLogId, setExpandedLogId] = useState(null);
 
     useEffect(() => {
@@ -125,8 +125,9 @@ const HistoryView = () => {
                 <div className="space-y-4">
                     {logs.map(log => {
                         const isExpanded = expandedLogId === log.id;
-                        const absenteeNames = (log.absentees_json || []).map(id => students[id]?.name).filter(Boolean);
-                        const odNames = (log.od_students_json || []).map(id => students[id]?.name).filter(Boolean);
+                        // Map IDs to full student objects, not just names
+                        const absenteeStudents = (log.absentees_json || []).map(id => students[id]).filter(Boolean);
+                        const odStudents = (log.od_students_json || []).map(id => students[id]).filter(Boolean);
 
                         return (
                             <div key={log.id} className="bg-white p-4 rounded-lg shadow border border-gray-100 cursor-pointer" onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
@@ -164,20 +165,24 @@ const HistoryView = () => {
                                     <div className="mt-4 pt-4 border-t border-gray-100 text-sm animate-fade-in">
                                         <div className="mb-3">
                                             <span className="font-bold text-red-600 block mb-1">Absentees:</span>
-                                            {absenteeNames.length > 0 ? (
+                                            {absenteeStudents.length > 0 ? (
                                                 <div className="flex flex-wrap gap-1">
-                                                    {absenteeNames.map((name, i) => (
-                                                        <span key={i} className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs border border-red-100">{name}</span>
+                                                    {absenteeStudents.map((s, i) => (
+                                                        <span key={i} className="bg-red-50 text-red-700 px-2 py-0.5 rounded text-xs border border-red-100">
+                                                            {s.name} <span className="opacity-75">({s.register_no})</span>
+                                                        </span>
                                                     ))}
                                                 </div>
                                             ) : <span className="text-gray-400 italic">None</span>}
                                         </div>
                                         <div>
                                             <span className="font-bold text-yellow-600 block mb-1">On Duty:</span>
-                                            {odNames.length > 0 ? (
+                                            {odStudents.length > 0 ? (
                                                 <div className="flex flex-wrap gap-1">
-                                                    {odNames.map((name, i) => (
-                                                        <span key={i} className="bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded text-xs border border-yellow-100">{name}</span>
+                                                    {odStudents.map((s, i) => (
+                                                        <span key={i} className="bg-yellow-50 text-yellow-700 px-2 py-0.5 rounded text-xs border border-yellow-100">
+                                                            {s.name} <span className="opacity-75">({s.register_no})</span>
+                                                        </span>
                                                     ))}
                                                 </div>
                                             ) : <span className="text-gray-400 italic">None</span>}
