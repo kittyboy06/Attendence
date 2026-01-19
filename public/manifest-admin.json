@@ -1,0 +1,22 @@
+{
+    "name": "Attendance Admin",
+    "short_name": "Admin",
+    "description": "Admin Dashboard for College Attendance",
+    "theme_color": "#2563eb",
+    "background_color": "#ffffff",
+    "display": "standalone",
+    "start_url": "/Attendence/admin/",
+    "scope": "/Attendence/admin/",
+    "icons": [
+        {
+            "src": "/Attendence/pwa-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/Attendence/pwa-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

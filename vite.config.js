@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { resolve } from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -14,6 +15,7 @@ export default defineConfig({
         short_name: 'Attendance',
         description: 'PWA for College Attendance Marking',
         theme_color: '#ffffff',
+        start_url: './index.html', // Explicitly start at root
         icons: [
           {
             src: 'pwa-192x192.png',
@@ -29,5 +31,13 @@ export default defineConfig({
       }
     })
   ],
-  base: '/Attendence/',
+  base: '/Attendence/', // Adjust if deploying to a subdirectory
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        admin: resolve(__dirname, 'admin/index.html'),
+      },
+    },
+  },
 })

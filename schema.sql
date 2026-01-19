@@ -87,3 +87,25 @@ CREATE POLICY "Enable upload for all users" ON storage.objects FOR INSERT WITH C
 INSERT INTO teachers (name) VALUES ('Prof. Smith'), ('Dr. Alice') ON CONFLICT DO NOTHING;
 -- Note: Subjects has a UNIQUE constraint on 'code', so this works well.
 INSERT INTO subjects (name, code) VALUES ('Mathematics', 'MAT101'), ('Physics', 'PHY102') ON CONFLICT (code) DO NOTHING;
+
+-- 5. New Tables for V2 (Holidays & Settings)
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+ALTER TABLE settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable all access for all users" ON settings;
+CREATE POLICY "Enable all access for all users" ON settings FOR ALL USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS holidays (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  date DATE NOT NULL UNIQUE,
+  description TEXT,
+  type TEXT DEFAULT 'Holiday', -- 'Holiday', 'Event', etc.
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE holidays ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Enable all access for all users" ON holidays;
+CREATE POLICY "Enable all access for all users" ON holidays FOR ALL USING (true) WITH CHECK (true);

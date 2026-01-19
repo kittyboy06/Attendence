@@ -1,10 +1,10 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import ClientApp from './ClientApp.jsx'
+import AdminApp from './AdminApp.jsx'
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <ClientApp />
-  </StrictMode>,
+    <StrictMode>
+        <AdminApp />
+    </StrictMode>,
 )
